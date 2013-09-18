@@ -139,9 +139,18 @@ class BulbsObjectManager(object):
         :type entity: bulbs.model.Node, bulbs.model.Relationship
         :returns: graphalchemy.ogm.BulbsObjectManager -- this object itself.
         """
-        self.session_add.append(entity)
-        if entity in self.session_delete:
-            self.session_delete.remove(entity)
+        found = False
+        for entity_add in self.session_add:
+            if entity_add is entity:
+                found = True
+                break
+        if not found:
+            self.session_add.append(entity)
+        
+        for entity_delete in self.session_delete:
+            if entity_delete is entity:
+                self.session_delete.remove(entity)
+                break
         return self
 
 
@@ -152,9 +161,16 @@ class BulbsObjectManager(object):
         :type entity: bulbs.model.Node, bulbs.model.Relationship
         :returns: graphalchemy.ogm.BulbsObjectManager -- this object itself.
         """
-        self.session_delete.append(entity)
-        if entity in self.session_add:
-            self.session_add.remove(entity)
+        found = False
+        for entity_delete in self.session_delete:
+            if entity is entity_delete:
+                found = True
+                break
+        if not found:
+            self.session_add.append(entity)
+        for entity_add in self.session_add:
+            if entity is entity_add:
+                self.session_add.remove(entity)
         return self
 
 
@@ -176,20 +192,28 @@ class BulbsObjectManager(object):
         # We need to save nodes first
         for entity in self.session_add:
             if isinstance(entity, Node):
+                self._log("Flushed "+str(entity))
                 self._flush_one_node(entity)
         for entity in self.session_add:
             if isinstance(entity, Relationship):
+                self._log("Flushed "+str(entity))
                 self._flush_one_relation(entity)
         # Do not reset the session, we keep them tracked            
         # self.session_add = []
         
+        # We need to delete nodes first
         for entity in self.session_delete:
-            # Case where the entity was created from scratch (our hack)
             if entity._client is None:
                 continue
-            # Regular case, the entity is either loaded or created via repository
-            else: 
-                entity.delete()
+            if isinstance(entity, Relationship):
+                self._log("Deleted "+str(entity))
+                entity._edges.delete(entity.eid)
+        for entity in self.session_delete:
+            if entity._client is None:
+                continue
+            if isinstance(entity, Node):
+                self._log("Deleted "+str(entity))
+                entity._vertices.delete(entity.eid)
         # All deleted entities are detached
         self.session_delete = []
         
@@ -261,7 +285,14 @@ class BulbsObjectManager(object):
         :type entity: bulbs.model.Node, bulbs.model.Relationship
         :returns: graphalchemy.ogm.BulbsObjectManager -- this object itself.
         """
-        raise NotImplementedException('Method not implemented.')
+        
+        caches = [key for key in entity.__dict__ if '_cache' in key]
+        for cache in caches:
+            delattr(entity, cache)
+                
+        # Reload all other properties from DB.
+        
+        return self
             
             
     def close_all(self):
