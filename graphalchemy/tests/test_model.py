@@ -8,6 +8,10 @@
 from graphalchemy.tests.abstract import GraphAlchemyTestCase
 
 # Models
+from graphalchemy.model import Node
+from bulbs.property import String
+from graphalchemy.property import Url
+from graphalchemy.property import Boolean
 from graphalchemy.fixture.model import Recipe
 from graphalchemy.fixture.model import WebsiteHostsPage
 
@@ -168,3 +172,94 @@ class NodeTest(GraphAlchemyTestCase):
     #               Transfers the stuff in _data to the attributes
     #           self._initialized = True
 
+    def test_get(self):
+        
+        class Website(Node):
+            element_type = 'Website'
+            pass
+        class Page(Node):
+            element_type = 'Page'
+            title = String()
+            url = Url()
+            
+            def isHostedBy(self):
+                return self._relation('hosts', 'in', unique=True)
+            def isHostedBy_add(self, relation, node):
+                return self._relation_add('hosts', 'in', relation, node)
+            def isHostedBy_del(self, relation):
+                return self._relation_del('hosts', 'in', relation)
+            
+            def describes(self):
+                return self._relation('describes', 'out', unique=False)
+            def describes_add(self, relation, node):
+                return self._relation_add('describes', 'out', relation, node)
+            def describes_del(self, relation):
+                return self._relation_del('describes', 'out', relation)
+        class Content(Node):
+            element_type = 'Content'
+            pass
+        
+        class PageDescribesContent(Node):
+            label = 'describes'
+            accessible = Boolean()
+        class WebsiteHostsPage(Node):
+            label = 'hosts'
+        
+        # No relation for now
+        page = Page(title='Foo', url='Bar')
+        self.assertEquals({}, page.describes())
+        self.assertEquals({}, page.isHostedBy())
+        
+        # Add a relation
+        describe1 = PageDescribesContent(accessible=True)
+        describe2 = PageDescribesContent(accessible=False)
+        content1 = Content()
+        content2 = Content()
+        page.describes_add(describe1, content1)
+        page.describes_add(describe2, content2)
+        describes = page.describes()
+        self.assertIn(describe1, describes)
+        self.assertIn(describe2, describes)
+        self.assertIs(describes[describe1], content1)
+        self.assertIs(describes[describe2], content2)
+        
+        host1 = WebsiteHostsPage()
+        website1 = Website()
+        page.isHostedBy_add(host1, website1)
+        hosts = page.isHostedBy()
+        self.assertIn(host1, hosts)
+        self.assertIs(hosts[host1], website1)
+        
+        # Add a duplicate
+        page.describes_add(describe1, content1)
+        describes = page.describes()
+        self.assertEquals(2, len(describes))
+        
+        page.isHostedBy_add(host1, website1)
+        hosts = page.isHostedBy()
+        self.assertEquals(1, len(hosts))
+        
+        # Delete a relation
+        page.describes_del(describe2)
+        describes = page.describes()
+        self.assertIn(describe1, describes)
+        self.assertNotIn(describe2, describes)
+        self.assertIs(describes[describe1], content1)
+        self.assertEquals(len(describes), 1)
+        
+        page.isHostedBy_del(host1)
+        hosts = page.isHostedBy()
+        self.assertEquals({}, hosts)
+        
+        # Delete a non-existing relation
+        page.describes_del(host1)
+        describes = page.describes()
+        self.assertIn(describe1, describes)
+        self.assertNotIn(describe2, describes)
+        self.assertIs(describes[describe1], content1)
+        self.assertEquals(len(describes), 1)
+        
+        page.isHostedBy_del(describe1)
+        hosts = page.isHostedBy()
+        self.assertEquals({}, hosts)
+        

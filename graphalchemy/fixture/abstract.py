@@ -41,8 +41,8 @@ class AbstractFixture(object):
     def get(self, which, persisted=True):
         """ Returns a fixture element specified by its key.
         
-        :returns: graphalchemy.model.Node, graphalchemy.model.Relationship -- the
-        requested element.
+        :returns: The requested element.
+        :rtype: graphalchemy.model.Node, graphalchemy.model.Relationship 
         """
         if persisted:
             return self._fixtures[which]
@@ -52,8 +52,8 @@ class AbstractFixture(object):
     def get_parent(self, which):
         """ Returns a parent fixture specified by its key.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- the requested 
-        fixture.
+        :returns: The requested fixture.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture 
         """
         return self._parent[which]
 
@@ -61,8 +61,8 @@ class AbstractFixture(object):
     def load(self):
         """ Wrapper around _load_all for logging purposes.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         self._log('Loading fixtures : start')
         self._load_all()
@@ -74,8 +74,8 @@ class AbstractFixture(object):
     def _load_all(self):
         """ Loads this fixture, including its parents..
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         for parent in self._parent.itervalues():
             parent._load_all()
@@ -91,8 +91,8 @@ class AbstractFixture(object):
     def _load_self(self):
         """ Loads the elements of this particular fixture.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         for fixture in self._fixtures.itervalues():
             fixture.save()
@@ -104,8 +104,8 @@ class AbstractFixture(object):
         """ Builds every fixture element one by one, stores them in the _fixture 
         attribute, waiting to be persisted.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         raise NotImplementedError("Abstract class : you need to implement this method yourself.")
         
@@ -113,8 +113,8 @@ class AbstractFixture(object):
     def clean(self):
         """ Cleans the fixture after use. Only public method to use.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         self._log('Cleaning fixtures : start')
         self._clean_all()
@@ -126,8 +126,8 @@ class AbstractFixture(object):
     def _clean_all(self):
         """ Cleans the fixture after use.
         
-        :returns: graphalchemy.fixture.abstract.AbstractFixture -- this object 
-        itself.
+        :returns: This object itself.
+        :rtype: graphalchemy.fixture.abstract.AbstractFixture
         """
         
         self.clean_self()
