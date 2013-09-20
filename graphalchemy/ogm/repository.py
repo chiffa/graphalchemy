@@ -143,7 +143,7 @@ class Repository(object):
     def _update_object(self, obj, results):
         for property_db, value_db in results.iteritems():
             found = False
-            for property in self.model.properties:
+            for property in self.model._properties:
                 if property.name_db != property_db:
                     continue
                 found = True

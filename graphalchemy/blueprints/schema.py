@@ -5,6 +5,9 @@
 #                                      IMPORTS
 # ==============================================================================
 
+from graphalchemy.blueprints.types import List
+from graphalchemy.blueprints.types import Dict
+
 
 # ==============================================================================
 #                                      MODEL
@@ -12,7 +15,7 @@
 
 class Model(object):
     """ Holds all the schema characteristics that we want to enforce on an
-    Element.
+    Element (a Vertex or an Edge).
 
     This is an abstract class that is extended by specializations for Nodes
     and Relationships.
@@ -25,35 +28,67 @@ class Model(object):
     def __init__(self, model_name, metadata, *args, **kwargs):
         self.model_name = model_name
         self.metadata = metadata
-        self.properties = {}
+        self._properties = {}
+        self._adjacencies = {}
         self.indices = {}
         self.logger = kwargs.get('logger', None)
 
 
     def register_class(self, class_):
+        """ Binds this model to a Python class in the current metadata map, in
+        order to be able to perform mapping operations.
+
+        :param class_: The python class to tie to this model.
+        :type class_: object
+        :returns: This object itself.
+        :rtype: graphalchemy.blueprints.schema.Model
+        """
         raise NotImplementedError()
 
 
     def is_node(self):
+        """ :returns: True if this model is applicable to a node.
+        :rtype: bool
+        """
         raise NotImplementedError()
 
 
     def is_relationship(self):
+        """ :returns: True if this model is applicable to a relationship.
+        :rtype: bool
+        """
+        raise NotImplementedError()
+
+
+    def add_property(self, prop):
+        """ Registers a property on the current model, and register its index
+        if it exists.
+
+        :param prop: The property to register.
+        :type prop: graphalchemy.blueprints.schema.Property
+        :returns: This object itself.
+        :rtype: graphalchemy.blueprints.schema.Model
+        """
+        if prop.name_py in self._properties:
+            raise Exception('Cannot override previously set property.')
+        self._properties[prop.name_py] = prop
+        if prop.index:
+            self.indices[prop.name_py] = prop
+        if prop.prefix == True:
+            prop.name_db = self.model_name + '_' + prop.name_db
+        prop.model = self
+        return self
+
+
+    def add_adjacency(self, adjacency, name):
         raise NotImplementedError()
 
 
     def __repr__(self):
+        """ :returns: a readable representation of this model.
+        :rtype: str
+        """
         return self.model_name
-
-
-    def add_property(self, prop):
-        if prop.name_py in self.properties:
-            raise Exception('Cannot override previously set property.')
-        self.properties[prop.name_py] = prop
-        if prop.indexed:
-            self.indices[prop.name_py] = prop
-        prop.model = self
-        return self
 
 
     def _useful_indices_among(self, amongs):
@@ -62,27 +97,98 @@ class Model(object):
 
 
 class Node(Model):
+    """ Defines a model over a vertex, by specifying its properties.
+
+    Example use :
+    >>> website = Node('Website', metadata,
+    ...     Property('name', String(127), nullable=False, indexed='search'),
+    ...     Property('domain', Url(2801))
+    ... )
+    """
 
     # The key under which the Model name will be saved
     model_name_storage_key = 'element_type'
     model_type = 'vertex'
 
     def __init__(self, model_name, metadata, *args, **kwargs):
+        """ Creates a vertex model. It will enforce a domain model on every
+        vertex that has the corresponding model_name. It is similar to a table
+        for a relational database.
+        By itself, it does not contain any relationship. Relationships are
+        declared as adjacencies in the mapper step, because adjacencies are
+        constraints enforced between different objects (a node and a relation).
+
+        :param model_name: The name of the model in the database. Will be saved
+        as a property with key model_name_storage_key.
+        :type model_name: str
+        :param metadata: The metadata object that will hold the metadata.
+        :type metadata: graphalchemy.blueprints.schema.Metadata
+        :param properties: The list of properties that this model supports. Only
+        them will be persisted in the graph.
+        :type properties: list<graphalchemy.blueprints.model.Property>
+        """
         super(Node, self).__init__(model_name, metadata, *args, **kwargs)
         for prop in args:
+            if prop.primaryKey == True:
+                raise Exception('Only edge properties can be primaryKeys.')
             self.add_property(prop)
 
+
     def register_class(self, class_):
+        """ Binds this model to a Python class in the current metadata map, in
+        order to be able to perform mapping operations.
+
+        :param class_: The python class to tie to this model.
+        :type class_: object
+        :returns: This object itself.
+        :rtype: graphalchemy.blueprints.schema.Node
+        """
         self.metadata.bind_node(class_, self)
+        return self
+
 
     def is_node(self):
+        """ :returns: True if this model is applicable to a node.
+        :rtype: bool
+        """
         return True
 
+
     def is_relationship(self):
+        """ :returns: True if this model is applicable to a relationship.
+        :rtype: bool
+        """
         return False
 
 
+    def add_adjacency(self, adjacency, name):
+        """ Registers an adjacency in the current model.
+
+        :param adjacency: The adjacency to register.
+        :type adjacency: str
+        :param name: The name of the property to connect the node to.
+        :type name: str
+        """
+
+        # Save in related models
+        self._adjacencies[name] = adjacency
+        if adjacency.node is None:
+            adjacency.node = self
+
+        # Register property
+        # @todo
+
+        return self
+
+
 class Relationship(Model):
+    """ Defines a model over an edge, by specifying its properties.
+
+    Example use :
+    >>> websiteHasPage = Relationship('WebsiteHasPage', metadata,
+    ...     Property('created', DateTime(), nullable=False)
+    ... )
+    """
 
     # The key under which the Model name will be saved
     model_name_storage_key = 'label'
@@ -93,17 +199,70 @@ class Relationship(Model):
     BOTH = 'both'
 
     def __init__(self, model_name, metadata, *args, **kwargs):
+        """ Creates an edge model. It will enforce a domain model on every
+        edge that has the corresponding model_name. It is similar to a join
+        table for a relational database.
+        By itself, it does not contain any relationship. Relationships are
+        declared as adjacencies in the mapper step, because adjacencies are
+        constraints enforced between different objects (a node and a relation).
+
+        :param model_name: The name of the model in the database. Will be saved
+        as a property with key model_name_storage_key.
+        :type model_name: str
+        :param metadata: The metadata object that will hold the metadata.
+        :type metadata: graphalchemy.blueprints.schema.Metadata
+        :param properties: The list of properties that this model supports. Only
+        them will be persisted in the graph.
+        :type properties: list<graphalchemy.blueprints.model.Property>
+        """
         super(Relationship, self).__init__(model_name, metadata, *args, **kwargs)
+        self.directed = kwargs.get('directed', True)
+        self.signature = kwargs.get('signature', True)
         for prop in args:
             self.add_property(prop)
 
     def register_class(self, class_):
+        """ Binds this model to a Python class in the current metadata map, in
+        order to be able to perform mapping operations.
+
+        :param class_: The python class to tie to this model.
+        :type class_: object
+        :returns: This object itself.
+        :rtype: graphalchemy.blueprints.schema.Model
+        """
         self.metadata.bind_relationship(class_, self)
 
+
+    def add_adjacency(self, adjacency, name):
+        """ Registers an adjacency in the current model.
+
+        :param adjacency: The adjacency to register.
+        :type adjacency: str
+        :param name: The name of the property to connect the relationship to.
+        :type name: str
+        """
+
+        # Save in related models
+        self._adjacencies[name] = adjacency
+        if adjacency.relationship is None:
+            adjacency.relationship = self
+
+        # Register property
+        # @todo
+
+        return self
+
+
     def is_node(self):
+        """ :returns: True if this model is applicable to a node.
+        :rtype: bool
+        """
         return False
 
     def is_relationship(self):
+        """ :returns: True if this model is applicable to a relationship.
+        :rtype: bool
+        """
         return True
 
 
@@ -113,37 +272,144 @@ class Relationship(Model):
 # ==============================================================================
 
 class Adjacency(object):
+    """ An adjacency defines a constraint that we impose between a relation and
+    a node. It imposes :
+    - at the database level, unique-IN and unique-OUT constraints
+    - at the application level, specifications on the type of node that a given
+    relationship connects.
+    """
 
-    def __init__(self, node, relationship, direction=None, multi=None, nullable=None, indexed=False, **kwargs):
+    def __init__(self, relationship, nullable=None, unique=True, direction=None, node=None):
+        """ Defines the constraints to apply on an adjacency.
+
+        :param node: The node model that is connected.
+        :type node: graphalchemy.blueprints.schema.Node
+        :param relationship: The relationship model that connects.
+        :type relationship: graphalchemy.blueprints.schema.Relationship
+        :param unique: Whether the given node can be connected to multiple
+        instances of the relationship.
+        :type unique: bool
+        :param nullable: Whether the given node can be connected to no instance
+        of the relationship.
+        :type nullable: bool
+        :param direction: Whether the relation is IN-bound, or OUT-bound.
+        :type direction: const
+        """
         self.node = node
         self.relationship = relationship
         self.direction = direction
-        self.multi = multi
+        self.unique = unique
         self.nullable = nullable
-        self.indexed = indexed
 
 
 
 class Property(object):
+    """ A property specifies how a property is constrained, and how it is mapped
+    to the database. A property can apply to a node as well as a relationship.
 
-    def __init__(self, name_py, type_, nullable=None, indexed=False, **kwargs):
+    It imposes :
+    - a validation on the application side (notably type validation and nullable
+    verification)
+    - a conversion to the appropriate datatype for database persistence
+
+    It enables :
+    - a flexible property mapping (prefixing, property name conversion)
+    - indexing on a per-property and per-model basis
+    - primaryKey definition for edges
+    """
+
+    def __init__(self, name_py, type_, nullable=None, unique=False, index=None, primaryKey=False, group=None, prefix=False, name_db=None):
+        """ Defines the constraints to apply on a property.
+
+        :param name_py: The name of the property in the Python objects
+        :type name_py: str
+        :param type_: The python type, that will be automatically converted to
+        a corresponding datatype in the database.
+        :type type_: graphalchemy.blueprints.types.Type
+        :param nullable: Whether the property can be None.
+        :type nullable: bool
+        :param unique: Whether the property value is unique in the entire graph.
+        This is enforced as a unique-IN constraint in the graph type definition.
+        :type unique: bool
+        :param index: Which index to use to index the property. If True is
+        provided, the default index will be used. Not that this is enforced at
+        the database-level, not at the model level, so if this property is used
+        in multiple models, it will be indexed on the same index. The Migration
+        tool detects such conflicts, and you can use the prefix property to add
+        the model name to the node.
+        :type index: bool
+        :param primaryKey: Whether the property must be used as a primary key
+        to index relations.
+        :type primaryKey: bool
+        :param group: The name of the group to save this relation in.
+        :type group: str
+        :param prefix: Whether this property must be prefixed by the model name.
+        This is typically usefull for indexing purposes, when the property name
+        conflicts with other models.
+        :type prefix: bool
+        :param name_db: The name of the property in the database. Defaults to
+        the name of the property in Python.
+        """
+
         self.model = None
+
         self.name_py = name_py
-        self.name_db = name_py
+        self.prefix = prefix
+        if name_db is None:
+            name_db = name_py
+        self.name_db = name_db
+
         self.type = type_
         self.nullable = nullable
-        self.indexed = indexed
+
+        self.unique_graph = unique
+        if index is True:
+            index = 'standard'
+        if isinstance(self.type, List) \
+        or isinstance(self.type, Dict):
+            self.unique_node = True
+        else:
+            self.unique_node = False
+
+        self.index = index
+
+        self.group = group
+        self.primaryKey = primaryKey
 
 
     def to_py(self, value):
+        """ Casts a database value to its correct type in Python, after being
+        retrieved from the database for instance.
+
+        :param value: The value to cast.
+        :type value: mixed
+        :returns: The casted value.
+        :type: mixed
+        """
         return self.type.to_py(value)
 
 
     def to_db(self, value):
+        """ Casts a python value to its correct type in the database, before
+        being persisted in the database for instance.
+
+        :param value: The value to cast.
+        :type value: mixed
+        :returns: The casted value.
+        :type: mixed
+        """
         return self.type.to_db(value)
 
 
     def validate(self, value):
+        """ Validates a value given the property specifications. Returns False
+        and a list of errors if it fails.
+
+        :param value: The value to validate.
+        :type value: mixed
+        :returns: A boolean and a list of potential errors.
+        :rtype: bool, list
+        """
         if self.nullable == False \
         and value is None:
             return False, [u'Property is not nullable.']
@@ -151,6 +417,9 @@ class Property(object):
 
 
     def __repr__(self):
+        """ :returns: A readable representation of the property.
+        :rtype: str
+        """
         return '<'+str(self.model)+'.'+self.name_py+'('+str(self.type)+')>'
 
 
@@ -160,7 +429,7 @@ class Property(object):
 # ==============================================================================
 
 class MetaData(object):
-    """ Holds the metadata of all mapped objects.
+    """ Holds a map of all available metadata of all mapped models.
     """
 
     def __init__(self, bind=None, schema=None):
@@ -218,120 +487,5 @@ class MetaData(object):
 
     def is_bind(self, obj):
         return self.is_node(obj) or self.is_relationship(obj)
-
-
-
-class Validator(object):
-    """ Validates each property value of the given object against its specifications.
-
-    Example use :
-    >>> ok, errors = self.validator.run(obj)
-    True, {}
-    """
-
-    def __init__(self, metadata_map, logger=None):
-        """ Initializes the validator with a specific metadata map.
-
-        :param metadata_map: The metadata map to validate objects agains.
-        :type metadata_map: graphalchemy.blueprints.schema.MetaData
-        :param logger: An optionnal logger.
-        :type logger: logging.Logger
-        """
-        self.metadata_map = metadata_map
-        self.logger = logger
-
-
-    def run(self, obj):
-        """ Validates an object against its specification.
-
-        :param obj: The object to validate.
-        :type obj: graphalchemy.blueprints.schema.Model
-        :returns: A boolean stating if the validation was successfull, and the
-        eventual list of errors.
-        :rtype: boolean, dict<string, list>
-        """
-        metadata = self.metadata_map.for_object(obj)
-        all_errors = {}
-        ok = True
-        for property in metadata.properties:
-            python_value = getattr(obj, property.name_py)
-            _ok, errors = property.validate(python_value)
-            if _ok:
-                self._log('  Property '+str(property)+' is valid')
-            else:
-                all_errors[property.name_py] = errors
-                ok = False
-                self._log('  Property '+str(property)+' is invalid : '+" ".join(errors))
-        return ok, all_errors
-
-
-    def _log(self, message, level=10):
-        """ Thin wrapper for logging purposes.
-
-        :param message: The message to log.
-        :type message: str
-        :param level: The level of the log.
-        :type level: int
-        :returns: This object itself.
-        :rtype: graphalchemy.blueprints.schema.Validator
-        """
-        if self.logger is not None:
-            self.logger.log(level, message)
-        return self
-
-
-class MigrationGenerator(object):
-
-    def __init__(self, metadata_map, logger=None):
-        self.metadata_map = metadata_map
-        self.logger = logger
-        self._queries = []
-
-    def run(self):
-        for node in self.metadata_map._nodes:
-            self.run_node(node)
-        for relationship in self.metadata_map._relationships:
-            self.run_relationship(relationship)
-        return self
-
-    def run_node(self, node):
-        for prop in node.properties:
-            self.run_property_node(node, prop)
-        return self
-
-
-    def run_relationship(self, relationship):
-        for prop in relationship.properties:
-            self.run_property_relationship(relationship, prop)
-        return self
-
-    def run_property_relationship(self, relationship, property):
-        # g.makeType().name("battled").primaryKey(time).makeEdgeLabel();
-        pass
-
-    def run_property_node(self, node, property):
-        query = 'graph.makeType()'
-        query += '.name("'+property.name_db+'")'
-        query += '.dataType('+property.type_db+')'
-        query += '.indexed('+'Vertex.class'+')'
-        query += '.unique(Direction.BOTH).makePropertyKey()'
-        query += ';'
-        self._queries.append(query)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

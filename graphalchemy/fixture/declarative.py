@@ -55,7 +55,7 @@ from graphalchemy.blueprints.types import DateTime
 from graphalchemy.blueprints.schema import Property
 
 website = Node('Website', metadata,
-    Property('name', String(127), nullable=False, indexed=True),
+    Property('name', String(127), nullable=False, index=True),
     Property('domain', Url(2801)),
     Property('description', String(1024)),
     Property('content', String(1024))
@@ -66,56 +66,56 @@ page = Node('Page', metadata,
 )
 
 websiteHostsPageZ = Relationship('hosts', metadata,
-    Property('since', DateTime, nullable=False, default=datetime.now),
+    Property('since', DateTime, nullable=False),
     Property('accessible', Boolean())
 )
 
-websiteHostsPage_out = Adjacency(Website, WebsiteHostsPage,
+websiteHostsPage_out = Adjacency(website,
     direction=Relationship.OUT,
-    multi=True,
+    unique=False,
     nullable=True
 )
-websiteHostsPage_in = Adjacency(Page, WebsiteHostsPage,
+websiteHostsPage_in = Adjacency(page,
     direction=Relationship.IN,
-    multi=False,
+    unique=True,
     nullable=False
 )
 
 
 mapper(WebsiteHostsPage, websiteHostsPageZ)
-mapper(Page, page, properties={
+mapper(Page, page, adjacencies={
     'isHostedBy': websiteHostsPage_in
 })
-mapper(Website, website, properties={
+mapper(Website, website, adjacencies={
     'hosts': websiteHostsPage_out
 })
 
 
-website_obj = Website()
-website_obj.name = 'AllRecipes'
-website_obj.domain = 'http://allrecipes.com'
-website_obj.description = 'Interesting recipe website'
-website_obj.content = 'A lot !'
+# website_obj = Website()
+# website_obj.name = 'AllRecipes'
+# website_obj.domain = 'http://allrecipes.com'
+# website_obj.description = 'Interesting recipe website'
+# website_obj.content = 'A lot !'
 
-metadata_map = {
-    'Website': website
-}
-identity_map = {}
+# metadata_map = {
+#     'Website': website
+# }
+# identity_map = {}
 
-from bulbs.titan import TitanClient
-client = TitanClient(db_name="graph")
-from bulbs.rest import log
-log.setLevel(1)
+# from bulbs.titan import TitanClient
+# client = TitanClient(db_name="graph")
+# from bulbs.rest import log
+# log.setLevel(1)
 
 
-from graphalchemy.ogm.session import Session
-ogm = Session(client=client, metadata=metadata, logger=log)
-    
-ogm.add(website_obj)
-ogm.flush()
+# from graphalchemy.ogm.session import Session
+# ogm = Session(client=client, metadata=metadata, logger=log)
 
-website_obj.name = 'AllRecipes 2'
-ogm.add(website_obj)
-ogm.flush()
+# ogm.add(website_obj)
+# ogm.flush()
+
+# website_obj.name = 'AllRecipes 2'
+# ogm.add(website_obj)
+# ogm.flush()
 
 

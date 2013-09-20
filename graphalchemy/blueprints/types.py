@@ -21,6 +21,9 @@ class Type(object):
     - coercion (before the entity is saved in the database)
     """
 
+    # https://github.com/thinkaurelius/titan/wiki/Datatype-and-Attribute-Serializer-Configuration
+    # https://code.google.com/p/kryo/#Default_serializers
+    name_db = None
 
     def to_py(self, value):
         """ Coerces the value to the appropriate python type.
@@ -171,6 +174,8 @@ class Url(String):
 
 class DateTime(Type):
 
+    name_db = "Integer.class"
+
     def validate(self, value):
         if not isinstance(value, datetime):
             return False, [u'Wrong type : expected datetime, got '+str(type(value))]
@@ -183,4 +188,17 @@ class Date(Type):
         if not isinstance(value, date):
             return False, [u'Wrong type : expected date, got '+str(type(value))]
         return super(Date, self).validate(value)
+
+
+class List(Type):
+
+    name_db = 'Collection.class'
+
+
+
+class Dict(Type):
+
+    name_db = 'Map.class'
+
+
 
