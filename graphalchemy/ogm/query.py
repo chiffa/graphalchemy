@@ -38,6 +38,7 @@ class Query(object):
     def __iter__(self):
         if self._results is None:
             self.execute()
+            # What if the previous query is empty?
         for result in self._results:
             yield result
 

@@ -6,17 +6,27 @@ from graphalchemy.ogm.state import InstanceState
 class Session(object):
 
     def __init__(self, client, metadata, logger=None):
+        '''
+        @param client: client to which the session will bind
+        @type client:
+        @param metadata: metadataobject that defines the data model that will be enforced by the session
+        @type metadata: graphalchemy.blueprints.schema.MetaData
+        @param logger: logger for the session
+        @type logger: python.logging.logger     
+        '''
         self.identity_map = IdentityMap()
         self.metadata_map = metadata
         self.client = client
         self.logger = logger
 
+        # three types of modifications pythonic objects can undergo.
         self._update = []
         self._delete = []
         self._new = []
 
 
     def add(self, instance):
+        # Once again, those are strong references; is this necessary?
         if instance in self.identity_map:
             self._update.append(instance)
         else:
@@ -25,6 +35,7 @@ class Session(object):
 
 
     def get_vertex(self, id):
+        # What exactly is the object? id? The number of node within Titan's natural index?
         obj = self.identity_map.get_by_id(id)
         if obj:
             return obj, False

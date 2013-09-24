@@ -34,7 +34,7 @@ class MigrationGenerator(object):
         self._queries = []
         self._properties = {}
         self._labels = {}
-        self._groups = {}
+        self._groups = {} # TODO: ???? WHAT ARE THE GROUPS? 
 
 
     def run(self):
@@ -56,6 +56,7 @@ class MigrationGenerator(object):
 
 
     def run_node(self, node):
+        # TODO: ask Antoine si cela genere que les indexes autre chose aussi
         """ Generates all queries for a given node model.
 
         :param node: The node to generate the label from.
@@ -83,6 +84,11 @@ class MigrationGenerator(object):
 
 
     def make_edge_label(self, relationship):
+        # TODO: recuperer les infos pour ne pas recreer les indexes.
+        # TODO: check if it indexes well only a specific class or many different classes at the same time.
+        # It seems that this piece of code is critical for the relational databases because of the table/column
+        # structure, but looks much less critical here, except if we want to establish typings to recreate indexes
+        
         """ Creates the query for an edge label.
 
         :param relationship: The relationship to generate the label from.
@@ -103,6 +109,7 @@ class MigrationGenerator(object):
             query += '.primaryKey('+pks[0].name_db+')'
 
         # Signature
+        # What is the signature?
         # @todo
 
         # Direction

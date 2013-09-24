@@ -19,6 +19,11 @@ class InstanceState(object):
         return self
     
     def update_attributes(self, _attributes):
+        ''' Updates self.attributes avec les attributes fournis par l'argument. Only the attributes
+                that have been explicitely passed to the update_attributes parameter will be cast into TitanDB
+            @param _attributes: user-defined dictionary of attributes that is inserted into the attirbutes of the python
+            @type _attributes: dictionnaire python String:String 
+        '''
         self._attributes.update(_attributes)
         
     def attribute_has_changed(self, attribute, value):
