@@ -28,6 +28,8 @@ class Mapper(object):
         # Update the metadata to register the adjacencies
         if len(adjacencies) and not model.is_node():
             raise Exception('Adjacencies can only be registered on nodes.')
+            # @attention: there might be a mismatch between your node-bound
+            # adjacencies and chefkevin's relationship-bound adjacencies
         for name, adjacency in adjacencies.iteritems():
             node = model
             node.add_adjacency(adjacency, name)

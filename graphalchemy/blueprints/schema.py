@@ -459,6 +459,8 @@ class MetaData(object):
         raise Exception('Unmapped class.')
 
     def for_model(self, model):
+        # @attention: once again, iterators are not that efficient on dictionnaries
+        # for large models.
         for class_, node_model in self._nodes:
             if model is node_model:
                 return class_
